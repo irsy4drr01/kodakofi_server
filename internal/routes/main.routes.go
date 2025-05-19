@@ -12,7 +12,6 @@ func InitRouter(db *pgxpool.Pool) *gin.Engine {
 	router.Use(middlewares.CORSMiddleware)
 	rg := router.Group("/api")
 	auth(rg, db)
-	// orders(rg, db)
 	profile(rg, db, middlewares)
 	product(rg, db, middlewares)
 	order(rg, db, middlewares)
