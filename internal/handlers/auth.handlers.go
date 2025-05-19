@@ -38,15 +38,17 @@ func (a *AuthHandlers) Login(ctx *gin.Context) {
 	response := models.NewResponse(ctx)
 	if err := ctx.ShouldBindJSON(&userReq); err != nil {
 		if strings.Contains(err.Error(), "Field validation for 'Password'") {
-			response.BadRequest("Password length must be at least 8 characters", err.Error())
+			log.Println("Password validation error:", err.Error())
+			response.BadRequest("Bad Request", "Password length must be at least 8 characters")
 			return
 		}
-		log.Println(err.Error())
-		response.BadRequest("Invalid input", err.Error())
+		log.Println("Bad request:", err.Error())
+		response.BadRequest("Bad request, Validation Error", "Invalid input")
 		return
 	}
 	if !isValidEmail(userReq.Email) {
-		response.BadRequest("Invalid email format", nil)
+		log.Println("Email validation failed for input:", userReq.Email)
+		response.BadRequest("Bad Request", "Invalid email format")
 		return
 	}
 	result, err := a.repo.Login(ctx.Request.Context(), userReq.Email)
@@ -244,11 +246,11 @@ func (h *AuthHandlers) ResetPassword(ctx *gin.Context) {
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		if strings.Contains(err.Error(), "Field validation for 'Password'") {
-			response.BadRequest("Password length must be at least 8 characters", err.Error())
+			response.BadRequest("Bad Request", "Password length must be at least 8 characters")
 			return
 		}
 		log.Println(err.Error())
-		response.BadRequest("Invalid input", err.Error())
+		response.BadRequest("Bad Request", "Invalid Input")
 		return
 	}
 
