@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"log"
 	"slices"
 
 	"github.com/gin-gonic/gin"
@@ -14,16 +15,19 @@ func (m *Middleware) AccsessGate(allowedRole ...string) func(*gin.Context) {
 
 		payloads, exits := ctx.Get("payloads")
 		if !exits {
-			responder.Unauthorized("Please login first!", any(nil))
+			log.Println("Unauthorized: input payloads in context")
+			responder.Unauthorized("Unauthorized", "Please login first!")
 			return
 		}
 		userPayload, ok := payloads.(*pkg.Claims)
 		if !ok {
-			responder.Unauthorized("Your login identity is malformed, please login again!", any(nil))
+			log.Println("Unauthorized: payloads is not of type *pkg.Claims")
+			responder.Unauthorized("Unauthorized", "Your login identity is malformed, please login again!")
 			return
 		}
 		if !slices.Contains(allowedRole, userPayload.Role) {
-			responder.Forbidden("You do not have permission to access", any(nil))
+			log.Printf("Forbidden access: role '%s' is not allowed\n", userPayload.Role)
+			responder.Forbidden("Forbidden", "You do not have permission to access this resource")
 			return
 		}
 		ctx.Next()
