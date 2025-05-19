@@ -108,7 +108,7 @@ func (r *RepoProduct) GetAllProducts(c context.Context, params *models.ProductQu
         p.id, p.name, p.category_id, p.price, p.description,
         d.name AS discount_name, d.discount, 
         COALESCE(SUM(po.qty), 0) AS total_order, 
-        COALESCE(json_agg(pi.path) FILTER (WHERE pi.path IS NOT NULL), '[]'::json) AS images, 
+        COALESCE(json_agg(distinct(pi.path)) FILTER (WHERE pi.path IS NOT NULL), '[]'::json) AS images, 
         COUNT(r.*) AS total_ratings,
         c.name AS category_name,
         ps.total_filtered

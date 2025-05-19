@@ -17,6 +17,7 @@ import (
 type OrderRepoInterface interface {
 	CreateOrder(ctx context.Context, data *models.CreateOrderRequest) (*models.CreateOrderResponse, error)
 	GetHistoryOrders(ctx context.Context, offset int, status, userId string) ([]models.OrderHistory, error)
+	GetDetailOrderByUser(ctx context.Context, userID string, orderID int) (models.OrderDetailsResponse, error)
 }
 
 type RepoOrder struct {
@@ -292,4 +293,83 @@ func (r *RepoOrder) GetHistoryOrders(ctx context.Context, offset int, status, us
 	return result, nil
 }
 
+func (r *RepoOrder) GetDetailOrderByUser(ctx context.Context, userID string, orderID int) (models.OrderDetailsResponse, error) {
+	query := `
+		SELECT 
+			o.id, t.transaction_code, o.fullname, p.phone, o.created_at,
+			o.payment_method_id, o.delivery_method_id, s.status, t.total_amount
+		FROM orders o
+		JOIN transactions t ON o.id = t.order_id
+		JOIN profiles p ON o.user_id = p.user_id
+		JOIN status s ON o.status_id = s.id
+		WHERE o.user_id = $1 AND o.id = $2
+		LIMIT 1;
+	`
 
+	row := r.DB.QueryRow(ctx, query, userID, orderID)
+
+	var ordr models.OrderDetailsResponse
+	var ordrid int
+
+	err := row.Scan(
+		&ordrid, &ordr.TransactionCode, &ordr.Fullname, &ordr.Phone, &ordr.OrderDate,
+		&ordr.PaymentMethod, &ordr.DeliveryMethod, &ordr.Status, &ordr.TotalAmount,
+	)
+	if err != nil {
+		log.Println("Error scanning order row:", err)
+		return models.OrderDetailsResponse{}, err
+	}
+
+	var icePrice int
+	err = r.DB.QueryRow(ctx, `SELECT price FROM products WHERE name = 'Ice Cube' LIMIT 1`).Scan(&icePrice)
+	if err != nil {
+		log.Println("Error fetching Ice Cube price:", err)
+		icePrice = 0 // fallback agar tetap lanjut jika Ice Cube tidak ditemukan
+	}
+
+	itemsQuery := `
+		SELECT 
+			po.product_id, pr.name, po.qty, po.size, po.is_iced, po.base_price
+		FROM products_orders po
+		JOIN products pr ON po.product_id = pr.id
+		WHERE po.order_id = $1;
+	`
+
+	rows, err := r.DB.Query(ctx, itemsQuery, ordrid)
+	if err != nil {
+		log.Println("Error fetching items:", err)
+		return ordr, err
+	}
+	defer rows.Close()
+
+	var items []models.Item
+	for rows.Next() {
+		var item models.Item
+		var isIced bool
+		var basePrice int
+
+		err := rows.Scan(&item.ProductID, &item.ProductName, &item.Qty, &item.Size, &isIced, &basePrice)
+		if err != nil {
+			log.Println("Error scanning item row:", err)
+			continue
+		}
+
+		if item.Size == "Reguler" || item.Size == "Medium" || item.Size == "Large" {
+			if isIced {
+				item.IceOrHot = "Ice"
+				item.Price = fmt.Sprintf("%d", basePrice+icePrice)
+			} else {
+				item.IceOrHot = "Hot"
+				item.Price = fmt.Sprintf("%d", basePrice)
+			}
+		} else {
+			item.IceOrHot = ""
+			item.Price = fmt.Sprintf("%d", basePrice)
+		}
+
+		items = append(items, item)
+	}
+
+	ordr.Items = items
+	return ordr, nil
+}
